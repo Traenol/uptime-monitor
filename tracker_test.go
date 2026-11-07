@@ -22,10 +22,12 @@ func TestTracker(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			tracker := NewTracker(3, idGenerator())
 			for i, check := range tc.recordTest {
-				if got, err := tracker.Record(check); got.Kind != tc.expected[i] {
-					if err != nil {
-						t.Errorf("%v = %v, want %v.\n", check, got.Kind.String(), tc.expected[i].String())
-					}
+				got, err := tracker.Record(check)
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+				}
+				if got.Kind != tc.expected[i] {
+					t.Errorf("%v = %v, want %v.\n", check, got.Kind.String(), tc.expected[i].String())
 				}
 			}
 		})
@@ -119,7 +121,37 @@ func TestIncidentReset(t *testing.T) {
 }
 
 func TestSecondIncidentAfterResolve(t *testing.T) {
-
+	service := "api"
+	tests := []struct {
+		name       string
+		recordTest []CheckResult
+		expected   Incident
+	}{
+		{"3 failures, 1 success", []CheckResult{result(service, false), result(service, false), result(service, false), result(service, true), result(service, false)}, Incident{id: 1, service: "api", status: "Resolved", resolvedAt: time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tracker := NewTracker(3, idGenerator())
+			for _, check := range tc.recordTest {
+				_, err := tracker.Record(check)
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+				}
+			}
+			if tracker.open[service].id != tc.expected.id {
+				t.Errorf("incident id = %v want %v", tracker.open[service].id, tc.expected.id)
+			}
+			if tracker.open[service].service != tc.expected.service {
+				t.Errorf("incident service = %v want %v", tracker.open[service].service, tc.expected.service)
+			}
+			if tracker.open[service].status != tc.expected.status {
+				t.Errorf("incident status = %v want %v", tracker.open[service].status, tc.expected.status)
+			}
+			if tracker.open[service].resolvedAt != tc.expected.resolvedAt {
+				t.Errorf("incident resolvedAt = %v want %v", tracker.open[service].resolvedAt, tc.expected.resolvedAt)
+			}
+		})
+	}
 }
 
 func TestIncidentOpenResolveTimes(t *testing.T) {
@@ -127,6 +159,26 @@ func TestIncidentOpenResolveTimes(t *testing.T) {
 }
 
 func TestEmptyServiceError(t *testing.T) {
+	tests := []struct {
+		name       string
+		recordTest []CheckResult
+		expected   string
+	}{
+		{"3 failures, 1 success", []CheckResult{result("", false)}, "no service name received."},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tracker := NewTracker(3, idGenerator())
+			for _, check := range tc.recordTest {
+				_, err := tracker.Record(check)
+				if err == nil {
+					t.Errorf("did not receive expected error")
+				} else if err.Error() != tc.expected {
+					t.Errorf("error = %v want %v", err, tc.expected)
+				}
+			}
+		})
+	}
 
 }
 

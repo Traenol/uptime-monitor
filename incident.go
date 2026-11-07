@@ -1,6 +1,9 @@
 package main
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 func IncidentFactory() func(title, desc, service string, severity int) Incident {
 	nextID := idGenerator()
@@ -29,6 +32,7 @@ type Incident struct {
 }
 
 func (i Incident) Resolve(t time.Time) Incident {
+	fmt.Printf("Resolving incident %v\n", i)
 	i.status = "Resolved"
 	i.resolvedAt = t
 	return i

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"time"
 )
@@ -59,6 +60,9 @@ func (t *Tracker) Record(r CheckResult) (Event, error) {
 	}
 
 	if !r.OK {
+		if r.Service == "" {
+			return Event{}, errors.New("no service name received.")
+		}
 		t.failures[r.Service]++
 		if t.failures[r.Service] == t.threshold {
 			event.Kind = EventOpened
@@ -75,7 +79,10 @@ func (t *Tracker) Record(r CheckResult) (Event, error) {
 			event.Incident = inc
 		}
 	} else {
+		fmt.Printf("Resotred, count was at %d for %s\n", t.failures[r.Service], r.Service)
 		t.failures[r.Service] = 0
+		event.Incident = t.open[r.Service].Resolve(r.At)
+		t.open[r.Service] = &event.Incident
 	}
 	return event, nil
 }
