@@ -45,6 +45,8 @@ type Tracker struct {
 	open      map[string]*Incident
 }
 
+var ErrEmptyService = errors.New("no service name received")
+
 func NewTracker(threshold int, nextID func() int) *Tracker {
 	return &Tracker{
 		threshold: threshold,
@@ -58,11 +60,10 @@ func (t *Tracker) Record(r CheckResult) (Event, error) {
 	event := Event{
 		Kind: EventNone,
 	}
-
+	if r.Service == "" {
+		return Event{}, ErrEmptyService
+	}
 	if !r.OK {
-		if r.Service == "" {
-			return Event{}, errors.New("no service name received.")
-		}
 		t.failures[r.Service]++
 		if t.failures[r.Service] == t.threshold {
 			event.Kind = EventOpened

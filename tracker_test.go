@@ -13,13 +13,15 @@ type wantIncident struct {
 
 var at = time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
 
+const elapsed = 5 * time.Minute
+
 func TestTracker(t *testing.T) {
 	tests := []struct {
 		name       string
 		recordTest []CheckResult
 		expected   []EventKind
 	}{
-		{"opens on 3rd failure", []CheckResult{result("api", false, at), result("api", false, at), result("api", false, at)}, []EventKind{EventNone, EventNone, EventOpened}},
+		{"opens on 3rd failure", []CheckResult{result("api", false, at.Add(elapsed)), result("api", false, at.Add(elapsed)), result("api", false, at.Add(elapsed*2))}, []EventKind{EventNone, EventNone, EventOpened}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -32,6 +34,9 @@ func TestTracker(t *testing.T) {
 				if got.Kind != tc.expected[i] {
 					t.Errorf("%v = %v, want %v.\n", check, got.Kind.String(), tc.expected[i].String())
 				}
+				if got.Kind == EventOpened && got.Incident.openedAt != check.At {
+					t.Errorf("Incident opened at.Add(elapsed) %v, want %v", got.Incident.openedAt, check.At)
+				}
 			}
 		})
 	}
@@ -43,11 +48,11 @@ func TestIncidentGetsUniqueID(t *testing.T) {
 		recordTest []CheckResult
 		expected   []wantIncident
 	}{
-		{"opens 3 incidents in order", []CheckResult{result("api", false, at), result("api", false, at), result("api", false, at), result("portal", false, at), result("portal", false, at), result("portal", false, at), result("mailserver", false, at), result("mailserver", false, at), result("mailserver", false, at)}, []wantIncident{{1, "api"}, {2, "portal"}, {3, "mailserver"}}},
-		{"opens 3 incidents staggered", []CheckResult{result("api", false, at), result("portal", false, at), result("mailserver", false, at), result("api", false, at), result("portal", false, at), result("mailserver", false, at), result("api", false, at), result("portal", false, at), result("mailserver", false, at)}, []wantIncident{{1, "api"}, {2, "portal"}, {3, "mailserver"}}},
-		{"opens 3 incidents unordered", []CheckResult{result("mailserver", false, at), result("portal", false, at), result("api", false, at), result("portal", false, at), result("portal", false, at), result("api", false, at), result("mailserver", false, at), result("mailserver", false, at), result("api", false, at)}, []wantIncident{{1, "portal"}, {2, "mailserver"}, {3, "api"}}},
-		{"opens 2 incidents unordered", []CheckResult{result("mailserver", false, at), result("portal", false, at), result("api", false, at), result("portal", false, at), result("portal", false, at), result("api", false, at), result("mailserver", false, at), result("mailserver", false, at)}, []wantIncident{{1, "portal"}, {2, "mailserver"}}},
-		{"opens 1 incident, 4 records", []CheckResult{result("mailserver", false, at), result("mailserver", false, at), result("mailserver", false, at), result("mailserver", false, at)}, []wantIncident{{1, "mailserver"}}},
+		{"opens 3 incidents in order", []CheckResult{result("api", false, at.Add(elapsed)), result("api", false, at.Add(elapsed*2)), result("api", false, at.Add(elapsed*3)), result("portal", false, at.Add(elapsed*4)), result("portal", false, at.Add(elapsed*5)), result("portal", false, at.Add(elapsed*6)), result("mailserver", false, at.Add(elapsed*7)), result("mailserver", false, at.Add(elapsed*8)), result("mailserver", false, at.Add(elapsed*9))}, []wantIncident{{1, "api"}, {2, "portal"}, {3, "mailserver"}}},
+		{"opens 3 incidents staggered", []CheckResult{result("api", false, at.Add(elapsed)), result("portal", false, at.Add(elapsed*2)), result("mailserver", false, at.Add(elapsed*3)), result("api", false, at.Add(elapsed*4)), result("portal", false, at.Add(elapsed*5)), result("mailserver", false, at.Add(elapsed*6)), result("api", false, at.Add(elapsed*7)), result("portal", false, at.Add(elapsed*8)), result("mailserver", false, at.Add(elapsed*9))}, []wantIncident{{1, "api"}, {2, "portal"}, {3, "mailserver"}}},
+		{"opens 3 incidents unordered", []CheckResult{result("mailserver", false, at.Add(elapsed)), result("portal", false, at.Add(elapsed*2)), result("api", false, at.Add(elapsed*3)), result("portal", false, at.Add(elapsed*4)), result("portal", false, at.Add(elapsed*5)), result("api", false, at.Add(elapsed*6)), result("mailserver", false, at.Add(elapsed*7)), result("mailserver", false, at.Add(elapsed*8)), result("api", false, at.Add(elapsed*9))}, []wantIncident{{1, "portal"}, {2, "mailserver"}, {3, "api"}}},
+		{"opens 2 incidents unordered", []CheckResult{result("mailserver", false, at.Add(elapsed)), result("portal", false, at.Add(elapsed*2)), result("api", false, at.Add(elapsed*3)), result("portal", false, at.Add(elapsed*4)), result("portal", false, at.Add(elapsed*5)), result("api", false, at.Add(elapsed*6)), result("mailserver", false, at.Add(elapsed*7)), result("mailserver", false, at.Add(elapsed*8))}, []wantIncident{{1, "portal"}, {2, "mailserver"}}},
+		{"opens 1 incident, 4 records", []CheckResult{result("mailserver", false, at.Add(elapsed)), result("mailserver", false, at.Add(elapsed*2)), result("mailserver", false, at.Add(elapsed*3)), result("mailserver", false, at.Add(elapsed*4))}, []wantIncident{{1, "mailserver"}}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -80,49 +85,6 @@ func TestIncidentGetsUniqueID(t *testing.T) {
 	}
 }
 
-func TestIncidentResolveAfterSuccess(t *testing.T) {
-	tests := []struct {
-		name       string
-		recordTest []CheckResult
-		expected   []wantIncident
-	}{
-		{"opens 3 incidents, closes 2", []CheckResult{result("api", false, at), result("api", false, at), result("api", false, at), result("portal", false, at), result("portal", false, at), result("portal", false, at), result("mailserver", false, at), result("mailserver", false, at), result("mailserver", false, at)}, []wantIncident{{1, "api"}, {2, "portal"}, {3, "mailserver"}}},
-		{"opens 3 incidents staggered", []CheckResult{result("api", false, at), result("portal", false, at), result("mailserver", false, at), result("api", false, at), result("portal", false, at), result("mailserver", false, at), result("api", false, at), result("portal", false, at), result("mailserver", false, at)}, []wantIncident{{1, "api"}, {2, "portal"}, {3, "mailserver"}}},
-		{"opens 3 incidents unordered", []CheckResult{result("mailserver", false, at), result("portal", false, at), result("api", false, at), result("portal", false, at), result("portal", false, at), result("api", false, at), result("mailserver", false, at), result("mailserver", false, at), result("api", false, at)}, []wantIncident{{1, "portal"}, {2, "mailserver"}, {3, "api"}}},
-		{"opens 2 incidents unordered", []CheckResult{result("mailserver", false, at), result("portal", false, at), result("api", false, at), result("portal", false, at), result("portal", false, at), result("api", false, at), result("mailserver", false, at), result("mailserver", false, at)}, []wantIncident{{1, "portal"}, {2, "mailserver"}}},
-		{"opens 1 incident, 4 records", []CheckResult{result("mailserver", false, at), result("mailserver", false, at), result("mailserver", false, at), result("mailserver", false, at)}, []wantIncident{{1, "mailserver"}}},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-
-		})
-	}
-}
-
-func TestIncidentReset(t *testing.T) {
-	tests := []struct {
-		name       string
-		recordTest []CheckResult
-		expected   []wantIncident
-	}{
-		{"2 failures, 1 success, 2 failures", []CheckResult{result("api", false, at), result("api", false, at), result("api", true, at), result("api", false, at), result("api", false, at)}, []wantIncident{}},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			tracker := NewTracker(3, idGenerator())
-			for _, check := range tc.recordTest {
-				got, err := tracker.Record(check)
-				if err != nil {
-					t.Errorf("unexpected error: %v", err)
-				}
-				if got.Kind == EventOpened {
-					t.Errorf("incident opened below threshold.")
-				}
-			}
-		})
-	}
-}
-
 func TestIncidentResolveCount(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -130,13 +92,15 @@ func TestIncidentResolveCount(t *testing.T) {
 		expectedOpened int
 		expectedClosed int
 	}{
-		{"1 incident created and 0 resolved", []CheckResult{result("api", false, at), result("api", false, at), result("api", false, at)}, 1, 0},
-		{"1 incident created and 1 resolved", []CheckResult{result("api", false, at), result("api", false, at), result("api", false, at), result("api", true, at)}, 1, 1},
-		{"2 incident created and 1 resolved", []CheckResult{result("api", false, at), result("api", false, at), result("api", false, at), result("api", true, at), result("api", false, at), result("api", false, at), result("api", false, at)}, 2, 1},
-		{"2 incident created and 1 resolved, 2 services", []CheckResult{result("api", false, at), result("api", false, at), result("api", false, at), result("db", false, at), result("db", false, at), result("db", false, at), result("api", true, at)}, 2, 1},
-		{"2 incident created and 2 resolved", []CheckResult{result("api", false, at), result("api", false, at), result("api", false, at), result("api", true, at), result("api", false, at), result("api", false, at), result("api", false, at), result("api", true, at)}, 2, 2},
-		{"no indicents opened", []CheckResult{result("api", true, at)}, 0, 0},
-		{"2 fail 1 ok, no incidents", []CheckResult{result("api", false, at), result("api", false, at), result("api", true, at)}, 0, 0},
+		{"1 incident creat.Add(elapsed)ed and 0 resolved", []CheckResult{result("api", false, at.Add(elapsed)), result("api", false, at.Add(elapsed*2)), result("api", false, at.Add(elapsed*3))}, 1, 0},
+		{"1 incident creat.Add(elapsed)ed and 1 resolved", []CheckResult{result("api", false, at.Add(elapsed)), result("api", false, at.Add(elapsed*2)), result("api", false, at.Add(elapsed*3)), result("api", true, at.Add(elapsed*4))}, 1, 1},
+		{"2 incident creat.Add(elapsed)ed and 1 resolved", []CheckResult{result("api", false, at.Add(elapsed)), result("api", false, at.Add(elapsed*2)), result("api", false, at.Add(elapsed*3)), result("api", true, at.Add(elapsed*4)), result("api", false, at.Add(elapsed*5)), result("api", false, at.Add(elapsed*6)), result("api", false, at.Add(elapsed*7))}, 2, 1},
+		{"2 incident creat.Add(elapsed)ed and 1 resolved, 2 services", []CheckResult{result("api", false, at.Add(elapsed)), result("api", false, at.Add(elapsed*2)), result("api", false, at.Add(elapsed*3)), result("db", false, at.Add(elapsed*4)), result("db", false, at.Add(elapsed*5)), result("db", false, at.Add(elapsed*6)), result("api", true, at.Add(elapsed*7))}, 2, 1},
+		{"2 incident creat.Add(elapsed)ed and 2 resolved", []CheckResult{result("api", false, at.Add(elapsed)), result("api", false, at.Add(elapsed*2)), result("api", false, at.Add(elapsed*3)), result("api", true, at.Add(elapsed*4)), result("api", false, at.Add(elapsed*5)), result("api", false, at.Add(elapsed*6)), result("api", false, at.Add(elapsed*7)), result("api", true, at.Add(elapsed*8))}, 2, 2},
+		{"no indicents opened", []CheckResult{result("api", true, at.Add(elapsed))}, 0, 0},
+		{"2 fail 1 ok, no incidents", []CheckResult{result("api", false, at.Add(elapsed)), result("api", false, at.Add(elapsed*2)), result("api", true, at.Add(elapsed*3))}, 0, 0},
+		{"2 fail 1 ok 2 fail, no incidents", []CheckResult{result("api", false, at.Add(elapsed)), result("api", false, at.Add(elapsed*2)), result("api", true, at.Add(elapsed*3)), result("api", false, at.Add(elapsed*4)), result("api", false, at.Add(elapsed*5))}, 0, 0},
+		{"1 incident with 2 succeeds", []CheckResult{result("api", false, at.Add(elapsed)), result("api", false, at.Add(elapsed*2)), result("api", false, at.Add(elapsed*3)), result("api", true, at.Add(elapsed*4)), result("api", true, at.Add(elapsed*5))}, 1, 1},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -149,8 +113,14 @@ func TestIncidentResolveCount(t *testing.T) {
 				}
 				switch got.Kind {
 				case EventOpened:
+					if !got.Incident.openedAt.Equal(check.At) {
+						t.Errorf("incident opened at %v, want %v", got.Incident.openedAt, check.At)
+					}
 					opened++
 				case EventResolved:
+					if !got.Incident.resolvedAt.Equal(check.At) {
+						t.Errorf("incident resolved at %v, want %v", got.Incident.resolvedAt, check.At)
+					}
 					closed++
 				}
 			}
@@ -169,43 +139,56 @@ func TestIncidentOpenAndResolveTimes(t *testing.T) {
 	tests := []struct {
 		name       string
 		recordTest []CheckResult
-		openedAt   []time.Time
-		resolvedAt []time.Time
 	}{
-		{"1 incident 1 service", []CheckResult{result("api", false, at), result("api", false, at), result("api", false, at), result("api", true, at)}, []time.Time{time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)}, []time.Time{time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)}},
-		{"1 incident 2 service", []CheckResult{result("api", false, at), result("db", false, at), result("api", false, at), result("api", false, at), result("api", true, at)}, []time.Time{time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)}, []time.Time{time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)}},
-		{"2 incident 1 service", []CheckResult{result("api", false, at), result("api", false, at), result("api", false, at), result("api", true, at), result("api", false, at), result("api", false, at), result("api", false, at), result("api", true, at)}, []time.Time{time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC), time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)}, []time.Time{time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC), time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)}},
-		{"3 incident 2 service", []CheckResult{result("api", false, at), result("api", false, at), result("api", false, at), result("api", true, at), result("db", false, at), result("db", false, at), result("db", false, at), result("db", true, at), result("api", false, at), result("api", false, at), result("api", false, at), result("api", true, at)}, []time.Time{time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC), time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC), time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)}, []time.Time{time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC), time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC), time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)}},
-		{"0 incident 1 service", []CheckResult{result("api", false, at), result("api", false, at), result("api", true, at)}, []time.Time{time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)}, []time.Time{time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)}},
+		{"1 incident 1 service", []CheckResult{result("api", false, at.Add(elapsed)), result("api", false, at.Add(elapsed*2)), result("api", false, at.Add(elapsed*3)), result("api", true, at.Add(elapsed*4))}},
+		{"1 incident 2 service", []CheckResult{result("api", false, at.Add(elapsed)), result("db", false, at.Add(elapsed*2)), result("api", false, at.Add(elapsed*3)), result("api", false, at.Add(elapsed*4)), result("api", true, at.Add(elapsed*5))}},
+		{"2 incident 1 service", []CheckResult{result("api", false, at.Add(elapsed)), result("api", false, at.Add(elapsed*2)), result("api", false, at.Add(elapsed*3)), result("api", true, at.Add(elapsed*4)), result("api", false, at.Add(elapsed*5)), result("api", false, at.Add(elapsed*6)), result("api", false, at.Add(elapsed*7)), result("api", true, at.Add(elapsed*8))}},
+		{"3 incident 2 service", []CheckResult{result("api", false, at.Add(elapsed)), result("api", false, at.Add(elapsed*2)), result("api", false, at.Add(elapsed*3)), result("api", true, at.Add(elapsed*4)), result("db", false, at.Add(elapsed*5)), result("db", false, at.Add(elapsed*6)), result("db", false, at.Add(elapsed*7)), result("db", true, at.Add(elapsed*8)), result("api", false, at.Add(elapsed*9)), result("api", false, at.Add(elapsed*10)), result("api", false, at.Add(elapsed*11)), result("api", true, at.Add(elapsed*12))}},
+		{"0 incident 1 service", []CheckResult{result("api", false, at.Add(elapsed)), result("api", false, at.Add(elapsed*2)), result("api", true, at.Add(elapsed*3))}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Skip("TODO")
+			tracker := NewTracker(3, idGenerator())
+			for _, check := range tc.recordTest {
+				got, err := tracker.Record(check)
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+				}
+				switch got.Kind {
+				case EventOpened:
+					if !got.Incident.openedAt.Equal(check.At) {
+						t.Errorf("opened at = %v, want %v", got.Incident.openedAt, check.At)
+					}
+				case EventResolved:
+					if !got.Incident.resolvedAt.Equal(check.At) {
+						t.Errorf("resolved at = %v, want %v", got.Incident.resolvedAt, check.At)
+					}
+				}
+			}
 		})
 	}
 }
 
 func TestEmptyServiceError(t *testing.T) {
-	var emptyServiceName = errors.New("no service name received")
 	tests := []struct {
 		name       string
 		recordTest []CheckResult
-		expected   string
+		expected   error
 	}{
-		{"No service name", []CheckResult{result("", false, at)}, emptyServiceName.Error()},
+		{"No service name 1 fail", []CheckResult{result("", false, at.Add(elapsed))}, ErrEmptyService},
+		{"No service name 1 succeed", []CheckResult{result("", true, at.Add(elapsed))}, ErrEmptyService},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			tracker := NewTracker(3, idGenerator())
 			for _, check := range tc.recordTest {
 				_, err := tracker.Record(check)
-				if errors.Is(err, emptyServiceName) {
-					t.Errorf("got %v want %v", err, emptyServiceName)
+				if !errors.Is(err, ErrEmptyService) {
+					t.Errorf("got %v want %v", err, ErrEmptyService)
 				}
 			}
 		})
 	}
-
 }
 
 func result(service string, ok bool, atTime time.Time) CheckResult {
