@@ -79,10 +79,15 @@ func (t *Tracker) Record(r CheckResult) (Event, error) {
 			event.Incident = inc
 		}
 	} else {
-		fmt.Printf("Resotred, count was at %d for %s\n", t.failures[r.Service], r.Service)
 		t.failures[r.Service] = 0
-		event.Incident = t.open[r.Service].Resolve(r.At)
-		t.open[r.Service] = &event.Incident
+		inc, ok := t.open[r.Service]
+		if ok {
+			delete(t.open, r.Service)
+			event.Kind = EventResolved
+			event.Incident = inc.Resolve(r.At)
+		} else {
+			event.Kind = EventNone
+		}
 	}
 	return event, nil
 }
