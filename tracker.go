@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"time"
 )
 
@@ -52,13 +53,6 @@ func NewTracker(threshold int, nextID func() int) *Tracker {
 	}
 }
 
-func result(service string, ok bool) CheckResult {
-	return CheckResult{
-		Service: service,
-		OK:      ok,
-		At:      time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC),
-	}
-}
 func (t *Tracker) Record(r CheckResult) (Event, error) {
 	event := Event{
 		Kind: EventNone,
@@ -66,13 +60,22 @@ func (t *Tracker) Record(r CheckResult) (Event, error) {
 
 	if !r.OK {
 		t.failures[r.Service]++
+		if t.failures[r.Service] == t.threshold {
+			event.Kind = EventOpened
+			inc := Incident{
+				id:          t.nextID(),
+				title:       fmt.Sprintf("%s is down.", r.Service),
+				description: fmt.Sprintf("%s has failed healthchecks %d times. This meets or exceeds its defined threshold: %d", r.Service, t.failures[r.Service], t.threshold),
+				service:     r.Service,
+				severity:    0, // Placeholder
+				status:      "Triggered",
+				openedAt:    r.At,
+			}
+			t.open[r.Service] = &inc
+			event.Incident = inc
+		}
 	} else {
 		t.failures[r.Service] = 0
-	}
-
-	if t.failures[r.Service] == t.threshold {
-		event.Kind = EventOpened
-		// create an incident
 	}
 	return event, nil
 }

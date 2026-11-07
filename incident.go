@@ -1,5 +1,7 @@
 package main
 
+import "time"
+
 func IncidentFactory() func(title, desc, service string, severity int) Incident {
 	nextID := idGenerator()
 	return func(title, desc, service string, severity int) Incident {
@@ -10,6 +12,7 @@ func IncidentFactory() func(title, desc, service string, severity int) Incident 
 			service:     service,
 			severity:    severity,
 			status:      "Triggered",
+			openedAt:    time.Now(),
 		}
 	}
 }
@@ -21,10 +24,13 @@ type Incident struct {
 	service     string
 	severity    int
 	status      string
+	openedAt    time.Time
+	resolvedAt  time.Time
 }
 
-func (i Incident) Resolve() Incident {
+func (i Incident) Resolve(t time.Time) Incident {
 	i.status = "Resolved"
+	i.resolvedAt = t
 	return i
 }
 

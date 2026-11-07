@@ -10,7 +10,7 @@ func main() {
 	sendConsole := notifyWith(ConsoleNotifier{})
 	sendShort := notifyWith(ShortNotifier{})
 
-	inc = inc.Resolve()
+	//inc = inc.Resolve()
 	sendConsole(inc)
 	sendConsole(inc2)
 	sendShort(inc)
