@@ -211,16 +211,41 @@ func TestBadThreshold(t *testing.T) {
 	tests := []struct {
 		name       string
 		recordTest int
-		expected   error
 	}{
-		{"0 Threshold", 0, errors.New("")},
-		{"Negative Threshold", -1, errors.New("")},
+		{"0 Threshold", 0},
+		{"Negative Threshold", -1},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := NewTracker(tc.recordTest, idGenerator())
-			if !errors.Is(err, ThresholdError) {
+			tracker, err := NewTracker(tc.recordTest, idGenerator())
+			if tracker != nil {
+				t.Errorf("tracker is not nil! %v", tracker)
+			}
+			if !errors.Is(err, ErrThresholdInvalid) {
 				t.Errorf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+func TestEventKind(t *testing.T) {
+	tests := []struct {
+		name       string
+		recordTest []EventKind
+		expected   string
+	}{
+		{"EventOpened", []EventKind{EventOpened}, "EventOpened"},
+		{"EventResolved", []EventKind{EventResolved}, "EventResolved"},
+		{"EventNone", []EventKind{EventNone}, "EventNone"},
+		{"EventUnknown", []EventKind{EventUnknown}, "EventUnknown"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, check := range tc.recordTest {
+				got := check.String()
+				if got != tc.expected {
+					t.Errorf("got %v, want %v", got, tc.expected)
+				}
 			}
 		})
 	}

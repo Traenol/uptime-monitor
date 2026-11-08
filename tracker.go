@@ -18,6 +18,7 @@ const (
 	EventNone EventKind = iota
 	EventOpened
 	EventResolved
+	EventUnknown EventKind = 99
 )
 
 func (kind EventKind) String() string {
@@ -29,7 +30,7 @@ func (kind EventKind) String() string {
 	case EventResolved:
 		return "EventResolved"
 	default:
-		return ""
+		return "EventUnknown"
 	}
 }
 
@@ -46,11 +47,11 @@ type Tracker struct {
 }
 
 var ErrEmptyService = errors.New("no service name received")
-var ThresholdError = errors.New("threshold is not valid")
+var ErrThresholdInvalid = errors.New("threshold is not valid")
 
 func NewTracker(threshold int, nextID func() int) (*Tracker, error) {
 	if threshold < 1 {
-		return &Tracker{}, ThresholdError
+		return nil, ErrThresholdInvalid
 	}
 	return &Tracker{
 		threshold: threshold,
@@ -65,7 +66,8 @@ func (t *Tracker) Record(r CheckResult) (Event, error) {
 		Kind: EventNone,
 	}
 	if r.Service == "" {
-		return Event{}, ErrEmptyService
+		event.Kind = EventUnknown
+		return event, ErrEmptyService
 	}
 	if !r.OK {
 		t.failures[r.Service]++
