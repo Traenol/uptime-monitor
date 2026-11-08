@@ -14,6 +14,7 @@ type wantIncident struct {
 var at = time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
 
 const elapsed = 5 * time.Minute
+const threshold = 3
 
 func TestTracker(t *testing.T) {
 	tests := []struct {
@@ -25,7 +26,10 @@ func TestTracker(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			tracker := NewTracker(3, idGenerator())
+			tracker, err := NewTracker(threshold, idGenerator())
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
 			for i, check := range tc.recordTest {
 				got, err := tracker.Record(check)
 				if err != nil {
@@ -56,7 +60,10 @@ func TestIncidentGetsUniqueID(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			tracker := NewTracker(3, idGenerator())
+			tracker, err := NewTracker(threshold, idGenerator())
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
 			opened := 0
 			for _, check := range tc.recordTest {
 				got, err := tracker.Record(check)
@@ -92,11 +99,11 @@ func TestIncidentResolveCount(t *testing.T) {
 		expectedOpened int
 		expectedClosed int
 	}{
-		{"1 incident creat.Add(elapsed)ed and 0 resolved", []CheckResult{result("api", false, at.Add(elapsed)), result("api", false, at.Add(elapsed*2)), result("api", false, at.Add(elapsed*3))}, 1, 0},
-		{"1 incident creat.Add(elapsed)ed and 1 resolved", []CheckResult{result("api", false, at.Add(elapsed)), result("api", false, at.Add(elapsed*2)), result("api", false, at.Add(elapsed*3)), result("api", true, at.Add(elapsed*4))}, 1, 1},
-		{"2 incident creat.Add(elapsed)ed and 1 resolved", []CheckResult{result("api", false, at.Add(elapsed)), result("api", false, at.Add(elapsed*2)), result("api", false, at.Add(elapsed*3)), result("api", true, at.Add(elapsed*4)), result("api", false, at.Add(elapsed*5)), result("api", false, at.Add(elapsed*6)), result("api", false, at.Add(elapsed*7))}, 2, 1},
-		{"2 incident creat.Add(elapsed)ed and 1 resolved, 2 services", []CheckResult{result("api", false, at.Add(elapsed)), result("api", false, at.Add(elapsed*2)), result("api", false, at.Add(elapsed*3)), result("db", false, at.Add(elapsed*4)), result("db", false, at.Add(elapsed*5)), result("db", false, at.Add(elapsed*6)), result("api", true, at.Add(elapsed*7))}, 2, 1},
-		{"2 incident creat.Add(elapsed)ed and 2 resolved", []CheckResult{result("api", false, at.Add(elapsed)), result("api", false, at.Add(elapsed*2)), result("api", false, at.Add(elapsed*3)), result("api", true, at.Add(elapsed*4)), result("api", false, at.Add(elapsed*5)), result("api", false, at.Add(elapsed*6)), result("api", false, at.Add(elapsed*7)), result("api", true, at.Add(elapsed*8))}, 2, 2},
+		{"1 incident created and 0 resolved", []CheckResult{result("api", false, at.Add(elapsed)), result("api", false, at.Add(elapsed*2)), result("api", false, at.Add(elapsed*3))}, 1, 0},
+		{"1 incident created 1 resolved", []CheckResult{result("api", false, at.Add(elapsed)), result("api", false, at.Add(elapsed*2)), result("api", false, at.Add(elapsed*3)), result("api", true, at.Add(elapsed*4))}, 1, 1},
+		{"2 incident created and 1 resolved", []CheckResult{result("api", false, at.Add(elapsed)), result("api", false, at.Add(elapsed*2)), result("api", false, at.Add(elapsed*3)), result("api", true, at.Add(elapsed*4)), result("api", false, at.Add(elapsed*5)), result("api", false, at.Add(elapsed*6)), result("api", false, at.Add(elapsed*7))}, 2, 1},
+		{"2 incident created and 1 resolved, 2 services", []CheckResult{result("api", false, at.Add(elapsed)), result("api", false, at.Add(elapsed*2)), result("api", false, at.Add(elapsed*3)), result("db", false, at.Add(elapsed*4)), result("db", false, at.Add(elapsed*5)), result("db", false, at.Add(elapsed*6)), result("api", true, at.Add(elapsed*7))}, 2, 1},
+		{"2 incident created and 2 resolved", []CheckResult{result("api", false, at.Add(elapsed)), result("api", false, at.Add(elapsed*2)), result("api", false, at.Add(elapsed*3)), result("api", true, at.Add(elapsed*4)), result("api", false, at.Add(elapsed*5)), result("api", false, at.Add(elapsed*6)), result("api", false, at.Add(elapsed*7)), result("api", true, at.Add(elapsed*8))}, 2, 2},
 		{"no indicents opened", []CheckResult{result("api", true, at.Add(elapsed))}, 0, 0},
 		{"2 fail 1 ok, no incidents", []CheckResult{result("api", false, at.Add(elapsed)), result("api", false, at.Add(elapsed*2)), result("api", true, at.Add(elapsed*3))}, 0, 0},
 		{"2 fail 1 ok 2 fail, no incidents", []CheckResult{result("api", false, at.Add(elapsed)), result("api", false, at.Add(elapsed*2)), result("api", true, at.Add(elapsed*3)), result("api", false, at.Add(elapsed*4)), result("api", false, at.Add(elapsed*5))}, 0, 0},
@@ -105,7 +112,10 @@ func TestIncidentResolveCount(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			opened, closed := 0, 0
-			tracker := NewTracker(3, idGenerator())
+			tracker, err := NewTracker(threshold, idGenerator())
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
 			for _, check := range tc.recordTest {
 				got, err := tracker.Record(check)
 				if err != nil {
@@ -148,7 +158,10 @@ func TestIncidentOpenAndResolveTimes(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			tracker := NewTracker(3, idGenerator())
+			tracker, err := NewTracker(threshold, idGenerator())
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
 			for _, check := range tc.recordTest {
 				got, err := tracker.Record(check)
 				if err != nil {
@@ -180,12 +193,34 @@ func TestEmptyServiceError(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			tracker := NewTracker(3, idGenerator())
+			tracker, err := NewTracker(threshold, idGenerator())
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
 			for _, check := range tc.recordTest {
 				_, err := tracker.Record(check)
 				if !errors.Is(err, ErrEmptyService) {
 					t.Errorf("got %v want %v", err, ErrEmptyService)
 				}
+			}
+		})
+	}
+}
+
+func TestBadThreshold(t *testing.T) {
+	tests := []struct {
+		name       string
+		recordTest int
+		expected   error
+	}{
+		{"0 Threshold", 0, errors.New("")},
+		{"Negative Threshold", -1, errors.New("")},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := NewTracker(tc.recordTest, idGenerator())
+			if !errors.Is(err, ThresholdError) {
+				t.Errorf("unexpected error: %v", err)
 			}
 		})
 	}

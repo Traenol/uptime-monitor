@@ -46,14 +46,18 @@ type Tracker struct {
 }
 
 var ErrEmptyService = errors.New("no service name received")
+var ThresholdError = errors.New("threshold is not valid")
 
-func NewTracker(threshold int, nextID func() int) *Tracker {
+func NewTracker(threshold int, nextID func() int) (*Tracker, error) {
+	if threshold < 1 {
+		return &Tracker{}, ThresholdError
+	}
 	return &Tracker{
 		threshold: threshold,
 		nextID:    nextID,
 		failures:  make(map[string]int),
 		open:      make(map[string]*Incident),
-	}
+	}, nil
 }
 
 func (t *Tracker) Record(r CheckResult) (Event, error) {
